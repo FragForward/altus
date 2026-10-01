@@ -2,11 +2,14 @@ import { ipcRenderer } from "electron";
 import { Theme } from "./stores/themes/common";
 import { formatSelectedText } from "./utils/webview/formatSelectedText";
 import { getLuminance } from "color2k";
+import { startSpellcheck } from "./spellcheck/preload";
 
 let titleElement: HTMLTitleElement;
 
 window.onload = () => {
   titleElement = document.querySelector("title") as HTMLTitleElement;
+
+  startSpellcheck().catch((error) => console.error("Spellcheck:", error));
 
   // Reset initial theme
   document.body.querySelectorAll("script").forEach((script) => {

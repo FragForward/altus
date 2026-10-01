@@ -28,6 +28,11 @@ import {
   Settings,
 } from "./stores/settings/common";
 import AutoLaunch from "auto-launch";
+import {
+  getSpellcheckScript,
+  sendToSpellcheckHost,
+  stopSpellcheckHost,
+} from "./spellcheck/main";
 import electronDl from "electron-dl";
 import contextMenu from "electron-context-menu";
 
@@ -242,6 +247,8 @@ if (!singleInstanceLock) {
     addIPCHandlers(mainWindow);
   });
 
+  app.on("will-quit", stopSpellcheckHost);
+
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") {
       app.quit();
@@ -418,6 +425,11 @@ function addIPCHandlers(mainWindow: BrowserWindow) {
     // @ts-expect-error ImportMeta works correctly
     return import.meta.url.replace("main.js", "whatsapp.preload.js");
   });
+
+  ipcMain.handle("spellcheck-script", () => getSpellcheckScript());
+  ipcMain.handle("spellcheck-message", (_, message) =>
+    sendToSpellcheckHost(message)
+  );
 
   ipcMain.handle("settings-store-get", () => {
     return electronSettingsStore.store;
