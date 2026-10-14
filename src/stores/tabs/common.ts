@@ -10,6 +10,20 @@ export const TabServices: { id: TabService; name: string; url: string }[] = [
 /** Service of a tab; tabs created before services existed are WhatsApp. */
 export const getTabService = (tab: Tab): TabService => tab.service ?? "whatsapp";
 
+/**
+ * Slack refuses the Chrome version bundled with Electron. Pretend to be the
+ * current stable Chrome (a new major every four weeks since 134 on 2025-03-04).
+ */
+export const getSlackChromeMajor = (): number => {
+  const weeks = (Date.now() - Date.UTC(2025, 2, 4)) / (7 * 24 * 3600 * 1000);
+  return 134 + Math.max(0, Math.floor(weeks / 4) - 1);
+};
+
+export const getSlackUserAgent = (): string => {
+  const major = getSlackChromeMajor();
+  return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`;
+};
+
 export const getTabUrl = (tab: Tab): string =>
   TabServices.find((s) => s.id === getTabService(tab))?.url ?? TabServices[0].url;
 
