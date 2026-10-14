@@ -150,8 +150,22 @@ const TabsList: Component = () => {
 
   const [canShowNewChatDialog, setShowNewChatDialog] = createSignal(false);
 
-  const addNewTab = () => {
-    addTab(getDefaultTab());
+  // Ask for the service right away; Slack tabs are otherwise easy to miss (14.10.2026).
+  const addNewTab = async () => {
+    const result = await window.showMessageBox({
+      type: "question",
+      buttons: ["WhatsApp", "Slack", "Abbrechen"],
+      cancelId: 2,
+      title: "Neuer Tab",
+      message: "Welcher Dienst soll im neuen Tab laufen?",
+    });
+    if (result.response === 2) return;
+    const tab = getDefaultTab();
+    if (result.response === 1) {
+      tab.service = "slack";
+      tab.name = "Slack";
+    }
+    addTab(tab);
   };
 
   const removeTabWithPrompt = async (tab: Tab) => {
