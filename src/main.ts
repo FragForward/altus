@@ -1,4 +1,5 @@
 import {
+  desktopCapturer,
   app,
   BrowserWindow,
   clipboard,
@@ -266,8 +267,22 @@ if (!singleInstanceLock) {
       // Slack sign-in (SSO) and huddles open popups; keep those in Altus, send other links to the browser.
       webContents.setWindowOpenHandler(({ url }) => {
         if (isSlackPopupUrl(url)) return { action: "allow" };
-        shell.openExternal(url);
+        if (!isSlackAppUrl(url)) shell.openExternal(url);
         return { action: "deny" };
+      });
+      // Screen sharing in Slack huddles: share the primary screen (no picker on Windows).
+      webContents.session.setDisplayMediaRequestHandler((_request, callback) => {
+        desktopCapturer
+          .getSources({ types: ["screen"] })
+          .then((sources) => callback(sources[0] ? { video: sources[0] } : {}))
+          .catch(() => callback({}));
+      });
+      // Slack hands huddles to its desktop app via slack:// links; keep them in Altus instead.
+      webContents.on("will-navigate", (event, url) => {
+        if (isSlackAppUrl(url)) event.preventDefault();
+      });
+      webContents.on("will-frame-navigate", (event) => {
+        if (isSlackAppUrl(event.url)) event.preventDefault();
       });
       const isWhatsAppView = () => webContents.getURL().includes("whatsapp.com");
       // Client hints must match the Chrome version Slack tabs claim in their user agent.
@@ -348,6 +363,11 @@ if (!singleInstanceLock) {
       }
     });
   });
+}
+
+/** Links that would launch the Slack desktop app. */
+function isSlackAppUrl(url: string) {
+  return /^slack:/i.test(url);
 }
 
 /** Popups that belong to Slack itself or to a sign-in provider it redirects to. */
@@ -555,6 +575,7 @@ function addIPCHandlers(mainWindow: BrowserWindow) {
   );
 
   ipcMain.on("open-link", (_event, url: string) => {
+    if (isSlackAppUrl(url)) return;
     shell.openExternal(url);
   });
 
