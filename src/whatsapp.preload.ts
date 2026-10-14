@@ -6,10 +6,19 @@ import { startSpellcheck } from "./spellcheck/preload";
 
 let titleElement: HTMLTitleElement;
 
+// The same preload serves Slack tabs; WhatsApp-only tweaks are skipped there.
+const isWhatsApp = location.hostname.endsWith("whatsapp.com");
+
 window.onload = () => {
   titleElement = document.querySelector("title") as HTMLTitleElement;
 
   startSpellcheck().catch((error) => console.error("Spellcheck:", error));
+
+  if (!isWhatsApp) {
+    registerZoomKeys();
+    registerTitleElementObserver();
+    return;
+  }
 
   // Reset initial theme
   document.body.querySelectorAll("script").forEach((script) => {
@@ -69,7 +78,24 @@ window.onload = () => {
   registerTitleElementObserver();
 };
 
+function registerZoomKeys() {
+  document.body.addEventListener("keydown", (event) => {
+    if (!event.ctrlKey) return;
+    if (event.key === "=" || event.key === "+") ipcRenderer.send("zoom", "in");
+    else if (event.key === "-") ipcRenderer.send("zoom", "out");
+    else if (event.key === "0") ipcRenderer.send("zoom", "reset");
+  });
+}
+
+/** Slack titles carry channel names with digits; only "(n)" or an unread marker count. */
+function getSlackMessageCount(title: string) {
+  const count = /^\((\d+)\)/.exec(title.trim());
+  if (count) return parseInt(count[1], 10);
+  return /^[*!]/.test(title.trim()) ? 1 : 0;
+}
+
 function getMessageCountFromTitle(title: string) {
+  if (!isWhatsApp) return getSlackMessageCount(title);
   const title_regex = /([0-9]+)/;
   const exec = title_regex.exec(title);
   if (!exec) return 0;
@@ -245,6 +271,7 @@ function setThemeColors(colors: NonNullable<Theme["colors"]>) {
 }
 
 ipcRenderer.on("set-theme", (event, theme: Theme) => {
+  if (!isWhatsApp) return;
   document.body.classList.remove("custom");
 
   if (theme.id === "dark") {
@@ -265,6 +292,7 @@ ipcRenderer.on("set-theme", (event, theme: Theme) => {
 });
 
 ipcRenderer.on("format-text", (e, wrapper) => {
+  if (!isWhatsApp) return;
   formatSelectedText(wrapper);
 });
 
