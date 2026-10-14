@@ -5,7 +5,7 @@ import {
   createMemo,
   createSignal,
 } from "solid-js";
-import { type Tab } from "../stores/tabs/common";
+import { type Tab, getTabService, getTabUrl } from "../stores/tabs/common";
 import { WebviewTag } from "electron";
 import { themeStore } from "../stores/themes/solid";
 import { unwrap } from "solid-js/store";
@@ -23,6 +23,7 @@ const WebView: Component<{ tab: Tab }> = (props) => {
   createEffect(() => {
     if (!webviewRef) return;
     if (!didStopLoading()) return;
+    if (getTabService(props.tab) !== "whatsapp") return;
 
     webviewRef.send("set-theme", selectedTheme());
   });
@@ -94,8 +95,9 @@ const WebView: Component<{ tab: Tab }> = (props) => {
       ref={webviewRef}
       class="w-full h-full"
       id={`webview-${props.tab.id}`}
-      src="https://web.whatsapp.com"
+      src={getTabUrl(props.tab)}
       partition={`persist:${props.tab.id}`}
+      allowpopups={getTabService(props.tab) === "slack" ? true : undefined}
       preload={window.whatsappPreloadPath}
       webpreferences={`spellcheck=${props.tab.config.spellChecker}`}
     />

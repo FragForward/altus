@@ -1,8 +1,22 @@
 import { nanoid } from "nanoid";
 
+export type TabService = "whatsapp" | "slack";
+
+export const TabServices: { id: TabService; name: string; url: string }[] = [
+  { id: "whatsapp", name: "WhatsApp", url: "https://web.whatsapp.com" },
+  { id: "slack", name: "Slack", url: "https://app.slack.com/client" },
+];
+
+/** Service of a tab; tabs created before services existed are WhatsApp. */
+export const getTabService = (tab: Tab): TabService => tab.service ?? "whatsapp";
+
+export const getTabUrl = (tab: Tab): string =>
+  TabServices.find((s) => s.id === getTabService(tab))?.url ?? TabServices[0].url;
+
 export type Tab = {
   id: string;
   name: string;
+  service?: TabService;
   messageCount?: number;
   config: {
     theme: string;

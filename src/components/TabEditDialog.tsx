@@ -7,7 +7,7 @@ import {
   createSignal,
   useContext,
 } from "solid-js";
-import { Tab } from "../stores/tabs/common";
+import { Tab, TabServices, getTabService } from "../stores/tabs/common";
 import CloseIcon from "../icons/CloseIcon";
 import { themeStore } from "../stores/themes/solid";
 import { updateAndSyncTabStore } from "../stores/tabs/solid";
@@ -91,6 +91,26 @@ const TabEditDialog: Component<{
                 spellcheck={false}
               />
             </TextField.Root>
+            <StyledSelect
+              multiple={false}
+              options={TabServices}
+              optionValue="id"
+              optionTextValue="name"
+              label="Dienst"
+              placeholder="WhatsApp"
+              value={TabServices.find((s) => s.id === getTabService(props.tabToEdit()))}
+              onChange={(service) => {
+                if (!service) return;
+                const id = props.tabToEdit().id;
+                updateAndSyncTabStore("tabs", (t) => t.id === id, "service", service.id);
+                if (service.id === "slack" && props.tabToEdit().name === "New Tab") {
+                  updateAndSyncTabStore("tabs", (t) => t.id === id, "name", "Slack");
+                }
+              }}
+              rootClass="flex flex-col gap-1.5 py-2"
+              valueRender={(state) => state.selectedOption().name}
+              itemLabelRender={(item) => item.rawValue.name}
+            />
             <StyledSelect
               multiple={false}
               options={availableThemes()}

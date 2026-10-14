@@ -28,6 +28,11 @@ import {
   Settings,
 } from "./stores/settings/common";
 import AutoLaunch from "auto-launch";
+import {
+  getSpellcheckScript,
+  sendToSpellcheckHost,
+  stopSpellcheckHost,
+} from "./spellcheck/main";
 import electronDl from "electron-dl";
 import contextMenu from "electron-context-menu";
 
@@ -242,6 +247,8 @@ if (!singleInstanceLock) {
     addIPCHandlers(mainWindow);
   });
 
+  app.on("will-quit", stopSpellcheckHost);
+
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") {
       app.quit();
@@ -256,6 +263,13 @@ if (!singleInstanceLock) {
 
   app.on("web-contents-created", (_, webContents) => {
     if (webContents.getType() === "webview") {
+      // Slack sign-in (SSO) and huddles open popups; keep those in Altus, send other links to the browser.
+      webContents.setWindowOpenHandler(({ url }) => {
+        if (isSlackPopupUrl(url)) return { action: "allow" };
+        shell.openExternal(url);
+        return { action: "deny" };
+      });
+      const isWhatsAppView = () => webContents.getURL().includes("whatsapp.com");
       contextMenu({
         window: {
           webContents: webContents,
@@ -266,28 +280,28 @@ if (!singleInstanceLock) {
         append: (def, params, window) => [
           {
             label: "Bold",
-            visible: params.isEditable,
+            visible: params.isEditable && isWhatsAppView(),
             click: () => {
               (window as BrowserWindow).webContents.send("format-text", "*");
             },
           },
           {
             label: "Italic",
-            visible: params.isEditable,
+            visible: params.isEditable && isWhatsAppView(),
             click: () => {
               (window as BrowserWindow).webContents.send("format-text", "_");
             },
           },
           {
             label: "Strike",
-            visible: params.isEditable,
+            visible: params.isEditable && isWhatsAppView(),
             click: () => {
               (window as BrowserWindow).webContents.send("format-text", "~");
             },
           },
           {
             label: "Monospaced",
-            visible: params.isEditable,
+            visible: params.isEditable && isWhatsAppView(),
             click: () => {
               (window as BrowserWindow).webContents.send("format-text", "```");
             },
@@ -321,6 +335,24 @@ if (!singleInstanceLock) {
       }
     });
   });
+}
+
+/** Popups that belong to Slack itself or to a sign-in provider it redirects to. */
+function isSlackPopupUrl(url: string) {
+  try {
+    const host = new URL(url).hostname;
+    return [
+      "slack.com",
+      "slack-edge.com",
+      "google.com",
+      "microsoftonline.com",
+      "live.com",
+      "okta.com",
+      "apple.com",
+    ].some((d) => host === d || host.endsWith("." + d));
+  } catch {
+    return false;
+  }
 }
 
 function handleWhatsappLinks(argv: string[]) {
@@ -412,12 +444,19 @@ const sessionPermissions = {
 };
 type SessionPermissionKey = keyof typeof sessionPermissions;
 const HandledPermissions = Object.keys(sessionPermissions);
+/** Harmless permissions Slack needs for copy buttons and full-screen huddles. */
+const AlwaysAllowedPermissions = ["clipboard-sanitized-write", "fullscreen"];
 
 function addIPCHandlers(mainWindow: BrowserWindow) {
   ipcMain.handle("get-whatsapp-preload-path", () => {
     // @ts-expect-error ImportMeta works correctly
     return import.meta.url.replace("main.js", "whatsapp.preload.js");
   });
+
+  ipcMain.handle("spellcheck-script", () => getSpellcheckScript());
+  ipcMain.handle("spellcheck-message", (_, message) =>
+    sendToSpellcheckHost(message)
+  );
 
   ipcMain.handle("settings-store-get", () => {
     return electronSettingsStore.store;
@@ -464,6 +503,10 @@ function addIPCHandlers(mainWindow: BrowserWindow) {
     session
       .fromPartition(partitionId)
       .setPermissionRequestHandler((_, permission, callback) => {
+        if (AlwaysAllowedPermissions.includes(permission)) {
+          callback(true);
+          return;
+        }
         if (!HandledPermissions.includes(permission)) {
           callback(false);
           return;
