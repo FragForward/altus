@@ -14,7 +14,7 @@ import {
 import fs from "fs";
 import path from "path";
 import { electronTabStore } from "./stores/tabs/electron";
-import { Tab, TabStore } from "./stores/tabs/common";
+import { Tab, TabStore, getSlackChromeMajor } from "./stores/tabs/common";
 import { electronThemeStore } from "./stores/themes/electron";
 import { ThemeStore } from "./stores/themes/common";
 import { electronSettingsStore } from "./stores/settings/electron";
@@ -270,6 +270,19 @@ if (!singleInstanceLock) {
         return { action: "deny" };
       });
       const isWhatsAppView = () => webContents.getURL().includes("whatsapp.com");
+      // Client hints must match the Chrome version Slack tabs claim in their user agent.
+      webContents.session.webRequest.onBeforeSendHeaders(
+        { urls: ["*://*.slack.com/*", "*://slack.com/*"] },
+        (details, callback) => {
+          const major = String(getSlackChromeMajor());
+          for (const key of Object.keys(details.requestHeaders)) {
+            if (/^sec-ch-ua(-full-version-list)?$/i.test(key)) {
+              details.requestHeaders[key] = details.requestHeaders[key].replace(/v="134[^"]*"/g, `v="${major}"`);
+            }
+          }
+          callback({ requestHeaders: details.requestHeaders });
+        }
+      );
       contextMenu({
         window: {
           webContents: webContents,

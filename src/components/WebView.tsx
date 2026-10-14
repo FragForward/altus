@@ -5,7 +5,7 @@ import {
   createMemo,
   createSignal,
 } from "solid-js";
-import { type Tab, getTabService, getTabUrl } from "../stores/tabs/common";
+import { type Tab, getTabService, getTabUrl, getSlackUserAgent } from "../stores/tabs/common";
 import { WebviewTag } from "electron";
 import { themeStore } from "../stores/themes/solid";
 import { unwrap } from "solid-js/store";
@@ -98,6 +98,7 @@ const WebView: Component<{ tab: Tab }> = (props) => {
       src={getTabUrl(props.tab)}
       partition={`persist:${props.tab.id}`}
       allowpopups={getTabService(props.tab) === "slack" ? true : undefined}
+      useragent={getTabService(props.tab) === "slack" ? getSlackUserAgent() : undefined}
       preload={window.whatsappPreloadPath}
       webpreferences={`spellcheck=${props.tab.config.spellChecker}`}
     />

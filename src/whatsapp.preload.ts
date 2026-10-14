@@ -1,4 +1,5 @@
-import { ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer } from "electron";
+import { getSlackChromeMajor } from "./stores/tabs/common";
 import { Theme } from "./stores/themes/common";
 import { formatSelectedText } from "./utils/webview/formatSelectedText";
 import { getLuminance } from "color2k";
@@ -8,6 +9,26 @@ let titleElement: HTMLTitleElement;
 
 // The same preload serves Slack tabs; WhatsApp-only tweaks are skipped there.
 const isWhatsApp = location.hostname.endsWith("whatsapp.com");
+
+// Slack checks navigator.userAgentData too; report the same Chrome version as the user agent.
+if (!isWhatsApp) {
+  contextBridge.executeInMainWorld({
+    func: (major: string) => {
+      const data = (navigator as Navigator & { userAgentData?: { brands: { brand: string; version: string }[] } }).userAgentData;
+      if (!data) return;
+      const brands = data.brands.map((b) => (/Chrom/.test(b.brand) ? { ...b, version: major } : b));
+      const proxy = new Proxy(data, {
+        get(target, prop) {
+          if (prop === "brands") return brands;
+          const value = Reflect.get(target, prop);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+      Object.defineProperty(Navigator.prototype, "userAgentData", { get: () => proxy, configurable: true });
+    },
+    args: [String(getSlackChromeMajor())],
+  });
+}
 
 window.onload = () => {
   titleElement = document.querySelector("title") as HTMLTitleElement;
